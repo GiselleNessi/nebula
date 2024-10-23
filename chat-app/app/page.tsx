@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { Key, useState } from 'react'
 import Image from 'next/image'
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -26,24 +26,49 @@ const fetchFromAPI = async (apiType: 'chat' | 'code', message: string) => {
   }
 };
 
+const formatChatMessage = (text: string) => {
+  // Split the text by code blocks (```) and format accordingly
+  const parts = text.split(/```/g);
+  return parts.map((part, index) => {
+    if (index % 2 === 0) {
+      // Regular text (outside of code blocks)
+      return (
+        // biome-ignore lint/suspicious/noArrayIndexKey: <explanation>
+        <p key={index} className="mb-2 text-lg leading-relaxed break-words">
+          {part.trim()}
+        </p>
+      );
+      // biome-ignore lint/style/noUselessElse: <explanation>
+    } else {
+      // Code block (inside of ```)
+      return (
+        // biome-ignore lint/suspicious/noArrayIndexKey: <explanation>
+        <pre key={index} className="bg-gray-900 text-green-400 p-4 rounded-lg font-mono mb-4 whitespace-pre-wrap break-words">
+          <code>{part.trim()}</code>
+        </pre>
+      );
+    }
+  });
+};
+
 export default function ChatApp() {
   const [messages, setMessages] = useState<Array<{ text: string; sender: 'user' | 'chat' | 'code' | 'error' }>>([])
   const [inputValue, setInputValue] = useState('')
-  const [isLoading, setIsLoading] = useState(false)
+  const [loadingButton, setLoadingButton] = useState<null | 'chat' | 'code'>(null);
 
   const sendMessage = async (apiType: 'chat' | 'code') => {
     if (inputValue.trim()) {
-      setMessages(prev => [...prev, { text: inputValue, sender: 'user' }]);
+      setMessages((prev) => [...prev, { text: inputValue, sender: 'user' }]);
       setInputValue('');
-      setIsLoading(true);
+      setLoadingButton(apiType); // Set the loading button state
       try {
         const response = await fetchFromAPI(apiType, inputValue);
-        setMessages(prev => [...prev, { text: response, sender: apiType }]);
+        setMessages((prev) => [...prev, { text: response, sender: apiType }]);
       } catch (error) {
         console.error('Error fetching from API:', error);
-        setMessages(prev => [...prev, { text: `Error: ${error instanceof Error ? error.message : 'Failed to fetch response'}`, sender: 'error' }]);
+        setMessages((prev) => [...prev, { text: `Error: ${error instanceof Error ? error.message : 'Failed to fetch response'}`, sender: 'error' }]);
       } finally {
-        setIsLoading(false);
+        setLoadingButton(null); // Reset the loading button state
       }
     }
   };
@@ -60,7 +85,7 @@ export default function ChatApp() {
         />
         <h1 className="text-2xl font-bold mt-10 text-white">Project Nebula</h1>
       </div>
-      <ScrollArea className="flex-grow mb-4 border border-gray-700 rounded-md p-4">
+      <ScrollArea className="flex-grow mb-4 rounded-lg border border-gray-700 p-4">
         {messages.map((message, index) => (
           <div
             // biome-ignore lint/suspicious/noArrayIndexKey: <explanation>
@@ -69,10 +94,10 @@ export default function ChatApp() {
               message.sender === 'error' ? 'bg-red-600' : 'bg-gray-700'
               } max-w-[80%] ${message.sender !== 'user' ? 'mr-auto' : ''}`}
           >
-            {message.sender === 'code' ? (
-              <pre className="whitespace-pre-wrap break-words"><code>{message.text}</code></pre>
+            {message.sender === 'chat' || message.sender === 'code' ? (
+              <div>{formatChatMessage(message.text)}</div> // Use the function here to format both chat and code messages
             ) : (
-              message.text
+              <span>{message.text}</span>
             )}
           </div>
         ))}
@@ -83,24 +108,71 @@ export default function ChatApp() {
           placeholder="Type your message..."
           value={inputValue}
           onChange={(e) => setInputValue(e.target.value)}
-          className="flex-grow bg-gray-800 text-white border-gray-700"
-          disabled={isLoading}
+          className="flex-grow"
+          disabled={loadingButton !== null}
         />
         <Button
           onClick={() => sendMessage('chat')}
           variant="outline"
-          className="bg-white text-gray-900 hover:bg-gray-200"
-          disabled={isLoading}
+          disabled={loadingButton === 'chat'} // Disable only the "Chat" button when it's loading
         >
-          Chat API
+          {loadingButton === 'chat' ? (
+            // biome-ignore lint/a11y/noSvgWithoutTitle: <explanation>
+            <svg
+              className="animate-spin h-5 w-5 text-white"
+              xmlns="http://www.w3.org/2000/svg"
+              fill="none"
+              viewBox="0 0 24 24"
+            >
+              <circle
+                className="opacity-25"
+                cx="12"
+                cy="12"
+                r="10"
+                stroke="currentColor"
+                strokeWidth="4"
+              />
+              <path
+                className="opacity-75"
+                fill="currentColor"
+                d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
+              />
+            </svg>
+          ) : (
+            'Chat'
+          )}
         </Button>
+
         <Button
           onClick={() => sendMessage('code')}
           variant="outline"
-          className="bg-white text-gray-900 hover:bg-gray-200"
-          disabled={isLoading}
+          disabled={loadingButton === 'code'} // Disable only the "Code" button when it's loading
         >
-          Code API
+          {loadingButton === 'code' ? (
+            // biome-ignore lint/a11y/noSvgWithoutTitle: <explanation>
+            <svg
+              className="animate-spin h-5 w-5 text-white"
+              xmlns="http://www.w3.org/2000/svg"
+              fill="none"
+              viewBox="0 0 24 24"
+            >
+              <circle
+                className="opacity-25"
+                cx="12"
+                cy="12"
+                r="10"
+                stroke="currentColor"
+                strokeWidth="4"
+              />
+              <path
+                className="opacity-75"
+                fill="currentColor"
+                d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
+              />
+            </svg>
+          ) : (
+            'Code'
+          )}
         </Button>
       </div>
     </div>
